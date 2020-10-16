@@ -1,0 +1,476 @@
+﻿CREATE DATABASE gemita;
+use gemita;
+
+DROP TABLE IF EXISTS proveedor;
+CREATE TABLE proveedor(
+	ruc text(13) NOT NULL,
+	empresa VARCHAR(45) NOT NULL,
+	nombre VARCHAR(45) NOT NULL,
+	direccion VARCHAR(45) NOT NULL,
+	telefono VARCHAR(10) NOT NULL,
+	CONSTRAINT PK_Proveedor PRIMARY KEY(Ruc)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS compra;
+CREATE TABLE compra(
+	Numero INT NOT NULL AUTO_INCREMENT,
+	Fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	Total double(5,2) NOT NULL,
+	Id_Proveedor CHAR(13) NOT NULL,
+	CONSTRAINT PK_Compra PRIMARY KEY(Numero),
+	CONSTRAINT FK_Proveedor FOREIGN KEY(Id_Proveedor) REFERENCES proveedor(Ruc)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS producto;
+CREATE TABLE producto(
+	Id INT NOT NULL AUTO_INCREMENT,
+	Nombre VARCHAR(45) NOT NULL,
+	Stock INT NOT NULL default 0,
+	Costo double(5,2) NOT NULL,
+	PvP double(5,2) NOT NULL default 0,
+	CONSTRAINT PK_Producto PRIMARY KEY(Id)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS pedido;
+CREATE TABLE pedido(
+	Compra_Numero INT NOT NULL,
+	Producto_Id INT NOT NULL,
+	Cantidad INT NOT NULL,
+	Costo double(5,2) NOT NULL,
+	CONSTRAINT PK_Pedido PRIMARY KEY(Compra_Numero, Producto_Id),
+	CONSTRAINT FK_Compra FOREIGN KEY(Compra_Numero) REFERENCES compra(Numero),
+	CONSTRAINT FK_Producto FOREIGN KEY(Producto_Id) REFERENCES producto(Id)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS cliente;
+CREATE TABLE cliente(
+	cedula CHAR(10) NOT NULL,
+	Nombres VARCHAR(45) NOT NULL,
+	Apellidos VARCHAR(45) NOT NULL,
+	telefono VARCHAR(13),
+	CONSTRAINT PK_Cliente PRIMARY KEY(cedula)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS factura;
+CREATE TABLE factura(
+	Id INT NOT NULL AUTO_INCREMENT,
+	Fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	Total double(5,2) NOT NULL,
+	Id_Cliente CHAR(10) NOT NULL,
+	CONSTRAINT PK_Factura PRIMARY KEY(Id),
+	CONSTRAINT FK_Cliente FOREIGN KEY(Id_Cliente) REFERENCES cliente(cedula)
+) engine = InnoDB;
+
+DROP TABLE IF EXISTS detalle;
+CREATE TABLE detalle(
+	Producto_Id INT NOT NULL,
+	Factura_Id INT NOT NULL,
+	Cantidad INT NOT NULL,
+	PvP double(5,2) NOT NULL,
+	CONSTRAINT PK_Detalle PRIMARY KEY(Producto_Id, Factura_Id),
+	CONSTRAINT FK_Product FOREIGN KEY(Producto_Id) REFERENCES producto(Id),
+	CONSTRAINT FK_Factura FOREIGN KEY(Factura_Id) REFERENCES factura(Id)
+) engine = InnoDB;
+
+/*Insertar datos a proveedor */
+INSERT INTO proveedor (Ruc, Empresa, Nombre, direccion, telefono) VALUES
+("1310814239001", "Turikitaka", "Divina Macías", "Av Reales Tamarindo", "0998563147" ),
+("1310814221001", "BadBunny Baibi", "Bryan Macías", "Urb Judiciales", "0998212678" ),
+("1315082667001", "Lana Ranja", "Emilio Alcívar", "Che de vara y tercera transversal", "0996510960" ),
+("1327883571001", "Segundas Oportunidades", "Carlos Chavez", "Manta", "0992741854" ),
+("1304846457001", "La Cosita", "Homero Valdez", "Av Manabí y su capital","0948549829" ),
+("1304569485001", "Pronaca", "Koki Macías", "Av Universitaria", "0915613751"),
+("1308461316001", "Bimbo", "Pepe Parraga", "Av 5 de Junio","0989463798"),
+("1319874961001", "Bolitos SA", "Arianna Vinces", "Av 7 de Junio y 10 de Agosto","0961184936" ),
+("1319878946001", "Tony", "Shabely Avellan", "Av 1ra de Mayo","0960559636"),
+("1308489489001", "Chronos", "Majo Cedeño", "Av 10 de Agosto y 1ra Mayo","0915949413"),
+("1314984649001", "Coca Cola", "Emerson Palacios", "Charapoto","0965464989");
+
+
+/*Insertar datos a productos */
+INSERT INTO producto (Nombre, Stock, Costo, PvP) VALUES
+("CocaCola 1ltr", 25, 0.95, 1),
+("Tango mediano", 50, 0.25, 0.35),
+("Leche Entera Tony ", 12, 0.75, 1),
+("Polito Chocolate", 32, 0.22, 0.25),
+("Polito Fresa", 25, 0.95, 1),
+("Bidón Escocia", 25, 0.80, 1),
+("Bolitos", 120, 0.05, 0.10),
+("Leche Entera Lechera",5, 0.95, 1.40),
+("Tango pequeño", 60, 0.16, 0.25),
+("Galon Escocia", 10, 0.75, 1);
+
+
+
+/*Vistas*/
+
+create or replace view V_Lista_Productos as (
+			select id as Codigo,nombre as Producto, pvp as Precio
+			from producto
+);
+
+create or replace view V_masvendidos as (
+			select producto_id as Codigo, nombre as Producto,sum(cantidad) as Cantidad 
+			from detalle join producto on detalle.producto_id = producto.id
+			group by producto_id
+			order by 3 DESC
+			limit 5
+);
+
+
+
+/*Usuarios*/
+
+grant select,insert,update,delete on gemita.* to 'emilio'@'localhost' identified by 'andres';
+grant select,insert,update,delete on gemita.* to 'bryan'@'localhost' identified by 'antonio';
+
+
+
+
+/*Procedimientos almacenados*/
+
+
+						/* TRANSACCIÓN PARA AGREGAR EL DETALLE CON SUS RESPECTIVOS TRIGGER */
+delimiter //
+create procedure aggdetalle(in idf int,in idp int,cantidad int,in idc char(10))
+begin
+	declare st int;
+	declare pv double;
+
+	select stock into st, pvp into pv
+	from producto
+	where id = idp;
+
+	if st >= cantidad then
+		set pv = pv*cantidad;
+
+		insert into detalle
+		values(idp,idf,cantidad, pv);
+	end if;
+
+end//
+delimiter ;
+
+
+/* TRIGGER PARA LA NUEVA FACTURA */ 
+delimiter //
+Create trigger nuevafactura after insert
+   On detalle for each row
+Begin
+	Update factura
+	Set total = total + new.pvp
+	where id=new.factura_id;
+
+	update producto
+	set stock = stock - new.cantidad
+	where id = new.producto_id;
+End//
+Delimiter ;
+
+				/* TRANSACCIÓN  PARA AGREGAR PEDIDO CON SUS DEBIDOS TRIGGER */
+
+Delimiter //
+
+create procedure aggpedido(in cn int, in pi int, in cant int)
+begin
+
+	declare cos double(5,2);
+
+	select costo into cos
+	from producto
+	where id = pi;
+
+	set cos = cos * cant;
+
+	insert into pedido
+	values(cn,pi,cant,cos);
+end//
+delimiter ;
+
+
+/* TTRIGGER PARA LA NUEVA COMPRA */
+
+Delimiter //
+Create trigger nuevacompra after insert
+	on pedido for each row
+begin
+	update compra
+	set total = total + new.costo
+	where numero=new.compra_Numero;
+
+	update producto
+	set stock = stock + new.cantidad
+	where id = new.producto_id;
+end//
+Delimiter ;
+
+
+
+				/* PROCEDIMIENTO PARA AGREGAR PROVEEDOR*/	
+delimiter // 
+create procedure aggproveedor(in _ruc char(13), in _empresa varchar(45), in _nombre char(45),in _dire char (45), in _tel char(10))
+begin
+	insert into proveedor(ruc, empresa, nombre, direccion, telefono) values
+	(_ruc, _empresa, _nombre, _dire, _tel);
+end// 
+delimiter ;
+
+
+
+				/* PROCEDIMIENTO PARA AGREGAR CLIENTE*/
+
+delimiter //
+create procedure aggcliente(in _ced char(10), in _nombres varchar(45), in _apellidos varchar (45), in _telefono varchar(13))
+begin
+	insert into cliente (cedula, nombres, apellidos, telefono) values
+	(_ced, _nombres, _apellidos, _telefono);
+end// 
+delimiter ;
+
+
+
+				/* PROCEDIMIENTO PARA AGREGAR COMPRA*/
+
+delimiter // 
+create procedure aggcompra(in _fecha timestamp, in _total double(5,2), in _idprovee char (13))
+begin
+	insert into compra (fecha, total, id_proveedor) values
+	(_fecha , _total, _idprovee);
+end// 
+delimiter ;
+
+
+
+				/* PROCEDIMIENTO PARA AGREGAR FACTURA */ 
+
+
+delimiter //
+create procedure aggfactura(in _fecha timestamp, in _total double(5,2), _idc char(10))
+begin
+	insert into factura (fecha, total, id_cliente) values
+	(_fecha, _total, _idc);
+end//
+delimiter ; 
+
+
+
+				/* TRANSACCIONES PARA AGREGAR PRODUCTO CON SUS DEBIDOS TRIGGERS */
+
+delimiter // 
+create procedure aggproducto(in _nombre varchar(45), in _costo double(5,2))
+begin
+
+	insert into producto (nombre, Costo) values
+	(_nombre, _costo);
+end//
+delimiter ;
+
+/*TRIGGER PARA INSERTAR PRODUCTO*/
+
+Delimiter //
+create trigger insercionp after insert 
+	on producto for each row
+BEGIN
+	insert into historialproductos(fecha,usuario,nombre_p,tipo)
+	values(NOW(),USER(),New.Nombre,'agregado');
+END//
+Delimiter ;
+
+/*TRIGGER*/
+
+drop table if exists historialproductos;
+create table historialproductos(
+	Fecha datetime not null,
+	usuario varchar(50) not null,
+	nombre_p varchar(45) not null,
+	descripcion varchar(100),
+	tipo enum('agregado','modificado','eliminado')
+)engine=innodb;
+
+
+/*TRIGGER PARA MODIFICAR PRODUCTO*/
+
+Delimiter //
+create trigger modificacionp after update 
+	on producto for each row
+BEGIN
+	declare descripcion varchar(100);
+	set descripcion = CONCAT(OLD.Nombre, ' a ',NEW.Nombre,' ',OLD.costo, ' a ',NEW.costo,' ',OLD.pvp, ' a ',NEW.pvp);
+	insert into historialproductos(fecha,usuario,nombre_p,tipo,descripcion)
+	values(NOW(),USER(),New.Nombre,'modificado',descripcion);
+END//
+Delimiter ;
+delimiter //
+
+
+/*TRIGGER PARA ELIMINAR PRODUCTO*/
+
+Delimiter //
+create trigger eliminacionp before delete 
+	on producto for each row
+BEGIN
+	insert into historialproductos(fecha,usuario,nombre_p,tipo)
+	values(NOW(),USER(),Old.Nombre,'eliminado');
+END//
+Delimiter ;
+
+
+
+
+				/*PROCEDIMIENTO PARA MODIFICAR EL PRODUCTO */
+delimiter //
+create procedure modifproduct(in i int, in n varchar(45),in c double(5,2))
+begin
+	declare x int default 0;
+	
+	select id into x
+	from producto
+	where id = i;
+
+	if x <> 0 then
+		update producto
+		set nombre = n,costo=c
+		where id = i;
+	end if;
+end//
+delimiter ;
+
+
+
+				/*PROCEDIMIENTO PARA MODIFICAR LOS PROVEEDORES */
+
+delimiter //
+create procedure modifprov(in i char(13), in e varchar(45),in n varchar(45),in d varchar(45),in t varchar(10))
+begin
+	declare x char(13);
+	set x = '';
+	
+	select ruc into x
+	from proveedor
+	where ruc = i;
+
+	if x <> '' then
+		update proveedor
+		set empresa = e,nombre=n,direccion = d,telefono=t
+		where ruc = i;
+	end if;
+end//
+delimiter ;
+
+
+
+
+
+				/*PROCEDIMIENTO PARA MODIFICAR EL CLIENTE */
+
+delimiter //
+create procedure modifclient(in i char(10), in n varchar(45),in a varchar(45),in t varchar(13))
+begin
+	declare x char(10);
+	set x = '';
+	
+	select cedula into x
+	from cliente
+	where cedula = i;
+
+	if x <> '' then
+		update cliente
+		set nombres = n,apellidos =a,telefono=t
+		where cedula = i;
+	end if;
+end//
+delimiter ;
+
+
+
+
+					#FUNCIONES
+
+SET GLOBAL log_bin_trust_function_creators = 1;
+
+delimiter //
+create function ganancias(fech enum('01','02','03','04','05','06','07','08','09','10','11','12')) returns varchar(100)
+begin
+	declare x double(5,2);
+	declare compras double;
+	declare ventas double;
+	declare cadena varchar(100);
+
+	select sum(total) into ventas
+	from factura
+	where month(fecha)=fech;
+	
+	select sum(total) into compras
+	from compra
+	where month(fecha)=fech;
+
+	set x = ventas - compras;
+	set cadena = CONCAT('Total de ventas: ',ventas,', Total de compras: ',compras,', Ganancias totales: ',x);
+	return cadena;
+end//
+delimiter ;
+
+
+
+
+
+
+
+
+
+
+
+/*cursor*/
+Delimiter //
+create procedure P_precio()
+begin 
+	DECLARE limite boolean default false;
+	DECLARE v_Id int(11);
+	DECLARE v_precio double(5,2);
+	declare promedio double (5,2);
+
+	DECLARE c_precio cursor for
+
+		Select Id, pvp
+		from producto;
+
+	DECLARE continue HANDLER for sqlstate'02000' 
+	set limite = true;
+
+OPEN c_precio;
+C1_LOOP: LOOP
+
+
+	Fetch c_precio INTO v_id, v_precio;
+		if limite then 
+			leave C1_LOOP; 
+		end if;
+		
+		select avg(pvp) into promedio
+		from producto;
+		if v_precio > promedio then
+			update producto set pvp = v_precio - (v_precio * 0.2) where id = v_id;
+		end if; 
+		if v_precio < promedio then
+			update producto set pvp = v_precio + (v_precio*0.2)  where id = v_id;
+		end if;
+
+	
+End LOOP;
+Close c_precio;
+END//
+Delimiter ;
+
+
+
+
+
+
+/*transacciones*/
+begin;
+call aggdetalle(idf, idp ,idc);
+COMMIT;
+
+begin;
+call aggpedido(cn, pi , cant);
+COMMIT;
