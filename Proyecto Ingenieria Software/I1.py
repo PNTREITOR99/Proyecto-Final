@@ -1,3 +1,4 @@
+from crearbd import *
 from tkinter import *
 from tkinter import ttk
 import tkinter.font as tkFont
@@ -18,6 +19,18 @@ from Pedido import *
 import pandas as pd
 from tabulate import tabulate
 import csv
+crearbd.crear_bd()
+crearbd.tablaproveedor()
+crearbd.tablacompra()
+crearbd.tablaproducto()
+crearbd.tablapedido()
+crearbd.tablacliente()
+crearbd.tablafactura()
+crearbd.tabladetalle()
+crearbd.tablausuario()
+crearbd.triggerfactura()
+crearbd.triggerproducto()
+crearbd.close()
 
 Pass_ = 1
 Products = []
